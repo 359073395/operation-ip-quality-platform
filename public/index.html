@@ -10,7 +10,7 @@
     <main class="shell">
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">TikTok / ChatGPT / 主流平台出口检测</p>
+          <p class="eyebrow">TikTok / ChatGPT / 主流平台访问参考</p>
           <h1>运营IP质检平台</h1>
           <p class="subhead">判断 IP 是否住宅网络，辅助评估 TikTok 店铺、账号运营、广告投放和 AI 平台访问风险。</p>
         </div>
@@ -39,7 +39,7 @@
           </div>
           <label class="toggle">
             <input id="reachabilityInput" type="checkbox" checked>
-            <span>测试检测节点的平台连通性</span>
+            <span>显示输入 IP 的平台访问参考</span>
           </label>
           <button id="submitButton" type="submit">
             <span class="button-icon" aria-hidden="true">↗</span>
@@ -49,12 +49,12 @@
 
         <section id="emptyState" class="empty-state">
           <h2>输入一个 IP，生成运营质量报告</h2>
-          <p>第一版支持基础情报、住宅/VPS 倾向、DNS 黑名单、TikTok 与 ChatGPT 等平台连通性、综合评分和运营建议。</p>
+          <p>第一版支持基础情报、住宅/VPS 倾向、DNS 黑名单、TikTok 与 ChatGPT 等平台访问参考、综合评分和运营建议。</p>
         </section>
 
         <section id="loadingState" class="loading-state" hidden>
           <div class="spinner"></div>
-          <p>正在收集 IP 情报、黑名单和平台连通性...</p>
+          <p>正在收集 IP 情报、黑名单和平台访问参考...</p>
         </section>
 
         <section id="errorState" class="error-state" hidden></section>
@@ -112,7 +112,7 @@
             <article class="panel panel-wide">
               <div class="panel-title">
                 <span class="status-dot"></span>
-                <h3>平台连通性</h3>
+                <h3>平台访问参考</h3>
               </div>
               <p id="reachabilityNote" class="muted"></p>
               <div id="platformGrid" class="platform-grid"></div>

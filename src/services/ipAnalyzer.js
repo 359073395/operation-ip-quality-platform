@@ -475,28 +475,52 @@ function formatCountry(geo) {
   return [country, code].filter(Boolean).join(" / ");
 }
 
-async function runReachabilityChecks(enabled) {
+async function runReachabilityChecks(enabled, geoIntel) {
+  const inputRegion = formatCountry(geoIntel) || "-";
+
   if (!enabled) {
     return {
       mode: "skipped",
-      note: "本次未运行平台连通性检测。",
+      note: "本次未显示平台访问参考。",
       egress: null,
       targets: [],
     };
   }
 
-  const egress = await getCurrentEgressIntel();
-  const targets = await Promise.all(platformTargets.map((target) => probeTarget(target, egress)));
-  const reachableCount = targets.filter((item) => item.status !== "blocked").length;
-  const egressCountry = formatCountry(egress);
+  const targets = platformTargets.map((target) => ({
+    ...target,
+    status: "reference",
+    httpStatus: "-",
+    latencyMs: "-",
+    egressCountry: geoIntel.country || "",
+    egressCountryCode: geoIntel.countryCode || "",
+    detectedRegion: inputRegion,
+    verdict: `输入 IP 地区：${inputRegion}`,
+  }));
 
   return {
-    mode: "server-egress",
-    note: `该部分检测的是当前服务器/VPS 的出口网络${egressCountry ? `，出口国家/地区：${egressCountry}` : ""}。部署到目标 VPS 后，结果才代表该 VPS。`,
-    egress,
-    reachableCount,
+    mode: "input-ip-reference",
+    note: "该部分按用户输入 IP 展示平台访问参考地区，不使用当前部署服务器/VPS 的出口 IP。",
+    egress: null,
+    reachableCount: 0,
     total: targets.length,
     targets,
+  };
+}
+
+function buildReachabilityContext(reachability, geoIntel) {
+  const inputRegion = formatCountry(geoIntel) || "-";
+
+  return {
+    ...reachability,
+    note: reachability.note || "该部分按用户输入 IP 展示平台访问参考地区。",
+    context: {
+      subject: "用户输入 IP",
+      inputRegion,
+      egressRegion: "",
+      isSameCountry: true,
+      warning: "真实平台连通性必须让流量从该 IP 本身发出。服务器不能仅凭一个远程 IP 地址代替它访问 TikTok、ChatGPT 等网站。",
+    },
   };
 }
 
@@ -766,11 +790,12 @@ function buildRecommendations({ classification, dnsbl, reachability, ipMeta }) {
 async function analyzeIp({ ip, runReachability = true, requestMeta = {} }) {
   const normalizedIp = normalizeIp(ip);
   const ipMeta = getIpMeta(normalizedIp);
-  const [geoIntel, dnsbl, reachability] = await Promise.all([
+  const [geoIntel, dnsbl] = await Promise.all([
     getGeoIntel(ipMeta),
     checkDnsbl(ipMeta),
-    runReachabilityChecks(runReachability),
   ]);
+  const rawReachability = await runReachabilityChecks(runReachability, geoIntel);
+  const reachability = buildReachabilityContext(rawReachability, geoIntel);
   const classification = classifyNetwork(geoIntel, ipMeta);
   const operatorProfile = buildOperatorProfile(geoIntel, classification);
   const importantChecks = buildImportantChecks({ classification, dnsbl });

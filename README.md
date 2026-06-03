@@ -16,8 +16,8 @@ https://github.com/359073395/operation-ip-quality-platform
 - 主要信息：网络提供商、网络类型、归属商、归属商类型、使用者特征
 - 重要检测：匿名 VPN、机房代理、公共代理、可疑代理、黑名单、滥用节点、TOR、攻击记录、云服务
 - 地区时区：广播地区、注册地区、城市、经纬度、本地时区、主要语言
-- 平台连通性：TikTok、ChatGPT、OpenAI API、GitHub、Google、YouTube、Reddit、Netflix
-- 平台连通国家显示：例如 `可连通，出口国家：印度尼西亚 / ID`
+- 平台访问参考：TikTok、ChatGPT、OpenAI API、GitHub、Google、YouTube、Reddit、Netflix
+- 平台卡片显示用户输入 IP 的国家/地区，例如 `输入 IP 地区：印度尼西亚 / ID`
 - 检测前验证码：防止频繁恶意提交
 
 ## 本地运行
@@ -69,13 +69,13 @@ sudo bash scripts/update-vps.sh
 /opt/operation-ip-quality-platform
 ```
 
-## 平台连通性说明
+## 平台访问参考说明
 
 基础 IP 情报是针对输入 IP 的判断。
 
-平台连通性检测的是当前服务所在机器的网络出口。本地运行时检测的是本机出口；部署到 VPS 后，检测结果才代表该 VPS 出口对 TikTok、ChatGPT、GitHub 等平台的访问情况。
+平台访问参考显示的是用户输入 IP 的归属国家/地区，不使用当前部署服务器/VPS 的出口 IP。
 
-如果要检测某台 VPS 的真实出口质量，请把项目部署到那台 VPS。
+真实平台连通性必须让流量从该 IP 本身发出。服务器不能仅凭一个远程 IP 地址代替它访问 TikTok、ChatGPT 等网站。如果要做真实连通性测试，需要把项目部署到该 IP 所在 VPS，或让检测请求通过该 IP/代理出口。
 
 ## 常用命令
 
