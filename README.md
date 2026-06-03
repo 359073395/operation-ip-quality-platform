@@ -2,8 +2,15 @@
 
 用于判断 IP 是否住宅网络，辅助评估 TikTok 店铺、账号运营、广告投放和 AI 平台访问风险。
 
+仓库地址：
+
+```text
+https://github.com/359073395/operation-ip-quality-platform
+```
+
 ## 功能
 
+- 打开网站自动填入访问者 IP 地址
 - IP 基础情报：国家/地区、城市、时区、经纬度、ASN、运营商
 - 住宅属性判断：住宅、机房/VPS、未知需复核
 - 主要信息：网络提供商、网络类型、归属商、归属商类型、使用者特征
@@ -30,10 +37,10 @@ http://localhost:4173
 
 适用于 Ubuntu / Debian VPS。
 
-把项目上传到 GitHub 后，在 VPS 上执行：
+在任意 VPS 上执行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/你的用户名/你的仓库/main/scripts/deploy-vps.sh | sudo bash -s -- "https://github.com/你的用户名/你的仓库.git"
+curl -fsSL https://raw.githubusercontent.com/359073395/operation-ip-quality-platform/main/scripts/deploy-vps.sh | sudo bash -s -- "https://github.com/359073395/operation-ip-quality-platform.git"
 ```
 
 部署完成后访问：
@@ -42,10 +49,24 @@ curl -fsSL https://raw.githubusercontent.com/你的用户名/你的仓库/main/s
 http://你的VPS公网IP:4173
 ```
 
-也可以指定端口：
+指定端口部署：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/你的用户名/你的仓库/main/scripts/deploy-vps.sh | sudo PORT=8080 bash -s -- "https://github.com/你的用户名/你的仓库.git"
+curl -fsSL https://raw.githubusercontent.com/359073395/operation-ip-quality-platform/main/scripts/deploy-vps.sh | sudo PORT=8080 bash -s -- "https://github.com/359073395/operation-ip-quality-platform.git"
+```
+
+## 更新 VPS 上的项目
+
+进入项目目录后执行：
+
+```bash
+sudo bash scripts/update-vps.sh
+```
+
+默认目录：
+
+```text
+/opt/operation-ip-quality-platform
 ```
 
 ## 平台连通性说明

@@ -3,6 +3,7 @@ const cors = require("cors");
 const crypto = require("crypto");
 const path = require("path");
 const { z } = require("zod");
+const ipaddr = require("ipaddr.js");
 const { analyzeIp } = require("./src/services/ipAnalyzer");
 
 const app = express();
@@ -10,6 +11,7 @@ const port = Number(process.env.PORT || 4173);
 const challengeStore = new Map();
 const challengeTtlMs = 5 * 60 * 1000;
 
+app.set("trust proxy", true);
 app.use(cors());
 app.use(express.json({ limit: "64kb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -77,12 +79,63 @@ function verifyChallenge(id, answer) {
   return { ok: true };
 }
 
+function normalizeRequestIp(raw) {
+  let ip = String(raw || "").trim();
+  ip = ip.replace(/^::ffff:/i, "");
+
+  if (ip.startsWith("[") && ip.includes("]")) {
+    ip = ip.slice(1, ip.indexOf("]"));
+  }
+
+  return ip;
+}
+
+function getClientIp(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  const forwardedIp = Array.isArray(forwarded)
+    ? forwarded[0]
+    : String(forwarded || "").split(",")[0];
+  const candidates = [
+    forwardedIp,
+    req.ip,
+    req.socket.remoteAddress,
+  ];
+
+  for (const candidate of candidates) {
+    const ip = normalizeRequestIp(candidate);
+
+    if (ip && ipaddr.isValid(ip)) {
+      return ip;
+    }
+  }
+
+  return "";
+}
+
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "ip-operability-checker" });
 });
 
 app.get("/api/challenge", (_req, res) => {
   res.json(createChallenge());
+});
+
+app.get("/api/client-ip", (req, res) => {
+  const ip = getClientIp(req);
+  let range = "";
+  let isPublic = false;
+
+  if (ip) {
+    const parsed = ipaddr.parse(ip);
+    range = parsed.range();
+    isPublic = range === "unicast";
+  }
+
+  res.json({
+    ip,
+    range,
+    isPublic,
+  });
 });
 
 app.post("/api/check", async (req, res) => {
@@ -108,10 +161,7 @@ app.post("/api/check", async (req, res) => {
     return;
   }
 
-  const forwarded = req.headers["x-forwarded-for"];
-  const fallbackIp = Array.isArray(forwarded)
-    ? forwarded[0]
-    : String(forwarded || req.socket.remoteAddress || "").split(",")[0];
+  const fallbackIp = getClientIp(req);
 
   try {
     const result = await analyzeIp({

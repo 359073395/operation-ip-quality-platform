@@ -101,6 +101,23 @@ async function loadChallenge() {
   }
 }
 
+async function loadClientIp() {
+  if (ipInput.value.trim()) {
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/client-ip");
+    const data = await response.json();
+
+    if (response.ok && data.ip && !ipInput.value.trim()) {
+      ipInput.value = data.ip;
+    }
+  } catch (_error) {
+    // Auto-fill is a convenience only; manual input should still work.
+  }
+}
+
 function statusClass(value) {
   if (["是", "疑似"].includes(value)) {
     return "risk-yes";
@@ -300,5 +317,6 @@ function drawSignal() {
 }
 
 drawSignal();
+loadClientIp();
 loadChallenge();
 setState("empty");
