@@ -16,10 +16,10 @@ https://github.com/359073395/operation-ip-quality-platform
 - 主要信息：网络提供商、网络类型、归属商、归属商类型、使用者特征
 - 重要检测：匿名 VPN、机房代理、公共代理、可疑代理、黑名单、滥用节点、TOR、攻击记录、云服务
 - 免费第三方风控库：ipapi.is、proxycheck.io
+- 可选 API 风控库：AbuseIPDB、IPQualityScore
 - 地区时区：广播地区、注册地区、城市、经纬度、本地时区、主要语言
 - 平台访问参考：TikTok、ChatGPT、OpenAI API、GitHub、Google、YouTube、Reddit、Netflix
-- 平台卡片显示用户输入 IP 的归属地，例如 `归属地：印度尼西亚 / ID`
-- 检测前验证码：防止频繁恶意提交
+- 后台管理：修改页面文案、配置 API Key、测试 API 连通
 
 ## 本地运行
 
@@ -34,7 +34,7 @@ npm start
 http://localhost:4173
 ```
 
-后台管理：
+后台：
 
 ```text
 http://localhost:4173/admin
@@ -46,17 +46,11 @@ http://localhost:4173/admin
 ADMIN_PASSWORD=你的后台密码
 ```
 
-后台可用于：
-
-- 修改首页标题、副标题、说明文字
-- 修改 AbuseIPDB / IPQualityScore API Key
-- 测试 API Key 是否连通
-
 ## VPS 一键部署
 
 适用于 Ubuntu / Debian VPS。
 
-在任意 VPS 上执行：
+执行后脚本会提示你输入后台密码，自动写入 `.env`：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/359073395/operation-ip-quality-platform/main/scripts/deploy-vps.sh | sudo bash -s -- "https://github.com/359073395/operation-ip-quality-platform.git"
@@ -66,26 +60,83 @@ curl -fsSL https://raw.githubusercontent.com/359073395/operation-ip-quality-plat
 
 ```text
 http://你的VPS公网IP:4173
+http://你的VPS公网IP:4173/admin
 ```
 
-指定端口部署：
+也可以非交互部署：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/359073395/operation-ip-quality-platform/main/scripts/deploy-vps.sh | sudo PORT=8080 bash -s -- "https://github.com/359073395/operation-ip-quality-platform.git"
+curl -fsSL https://raw.githubusercontent.com/359073395/operation-ip-quality-platform/main/scripts/deploy-vps.sh | sudo ADMIN_PASSWORD='你的后台密码' bash -s -- "https://github.com/359073395/operation-ip-quality-platform.git"
 ```
 
-## 更新 VPS 上的项目
-
-进入项目目录后执行：
+指定端口：
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/359073395/operation-ip-quality-platform/main/scripts/deploy-vps.sh | sudo PORT=8080 ADMIN_PASSWORD='你的后台密码' bash -s -- "https://github.com/359073395/operation-ip-quality-platform.git"
+```
+
+## 更新 VPS 项目
+
+```bash
+cd /opt/operation-ip-quality-platform
 sudo bash scripts/update-vps.sh
 ```
 
-默认目录：
+重启：
+
+```bash
+pm2 restart operation-ip-quality-platform --update-env
+```
+
+## 后台管理
+
+后台地址：
 
 ```text
-/opt/operation-ip-quality-platform
+/admin
+```
+
+后台可用于：
+
+- 修改首页标题、副标题、说明文字
+- 修改 AbuseIPDB / IPQualityScore API Key
+- 测试 API Key 是否连通
+
+后台保存的页面文案写入：
+
+```text
+data/site-config.json
+```
+
+API Key 写入：
+
+```text
+.env
+```
+
+这两个运行时配置不会提交到 GitHub。
+
+## API Key 配置
+
+可以在后台填写，也可以手动编辑：
+
+```bash
+cd /opt/operation-ip-quality-platform
+sudo nano .env
+```
+
+示例：
+
+```bash
+ADMIN_PASSWORD=你的后台密码
+ABUSEIPDB_API_KEY=你的AbuseIPDBKey
+IPQUALITYSCORE_API_KEY=你的IPQualityScoreKey
+```
+
+修改后重启：
+
+```bash
+pm2 restart operation-ip-quality-platform --update-env
 ```
 
 ## 平台访问参考说明
@@ -96,9 +147,9 @@ sudo bash scripts/update-vps.sh
 
 真实平台连通性必须让流量从该 IP 本身发出。服务器不能仅凭一个远程 IP 地址代替它访问 TikTok、ChatGPT 等网站。如果要做真实连通性测试，需要把项目部署到该 IP 所在 VPS，或让检测请求通过该 IP/代理出口。
 
-## 免费风控库说明
+## 风控库说明
 
-项目当前接入了免费的第三方 IP 风控来源：
+当前接入：
 
 - `ipapi.is`：辅助判断 datacenter、proxy、vpn、tor、abuser、crawler 等信号
 - `proxycheck.io`：辅助判断 proxy、vpn、hosting、anonymous、compromised、scraper、tor、risk/confidence 等信号
@@ -108,26 +159,6 @@ sudo bash scripts/update-vps.sh
 这些来源不是 TikTok 官方数据库，只能作为运营风险辅助判断。
 
 如果 IPQualityScore 返回 `insufficient credits`，说明 key 已配置但账户暂无可用查询额度，需要在 IPQualityScore 后台确认免费额度或充值。
-
-在 VPS 上配置 AbuseIPDB：
-
-```bash
-cd /opt/operation-ip-quality-platform
-sudo nano .env
-```
-
-加入：
-
-```bash
-ABUSEIPDB_API_KEY=你的AbuseIPDBKey
-IPQUALITYSCORE_API_KEY=你的IPQualityScoreKey
-```
-
-然后重启：
-
-```bash
-pm2 restart operation-ip-quality-platform --update-env
-```
 
 ## 常用命令
 

@@ -4,6 +4,7 @@ set -Eeuo pipefail
 APP_NAME="operation-ip-quality-platform"
 APP_DIR="${APP_DIR:-/opt/${APP_NAME}}"
 PORT="${PORT:-4173}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 REPO_URL="${1:-${REPO_URL:-}}"
 
 if [[ -z "${REPO_URL}" ]]; then
@@ -47,10 +48,36 @@ npm ci --omit=dev
 
 echo "==> Writing environment"
 touch .env
-if grep -q '^PORT=' .env; then
-  sed -i "s/^PORT=.*/PORT=${PORT}/" .env
+
+set_env_value() {
+  local key="$1"
+  local value="$2"
+
+  if grep -q "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env
+  else
+    printf '%s=%s\n' "${key}" "${value}" >> .env
+  fi
+}
+
+set_env_value "PORT" "${PORT}"
+
+if [[ -z "${ADMIN_PASSWORD}" ]]; then
+  if grep -q '^ADMIN_PASSWORD=.' .env; then
+    echo "==> Admin password already configured"
+  else
+    echo "==> Configure admin password"
+    read -r -s -p "Enter admin password for /admin: " ADMIN_PASSWORD
+    echo
+    if [[ -z "${ADMIN_PASSWORD}" ]]; then
+      ADMIN_PASSWORD="$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")"
+      echo "No password entered. Generated admin password: ${ADMIN_PASSWORD}"
+      echo "Please save this password now."
+    fi
+    set_env_value "ADMIN_PASSWORD" "${ADMIN_PASSWORD}"
+  fi
 else
-  printf '\nPORT=%s\n' "${PORT}" >> .env
+  set_env_value "ADMIN_PASSWORD" "${ADMIN_PASSWORD}"
 fi
 
 echo "==> Starting service"
