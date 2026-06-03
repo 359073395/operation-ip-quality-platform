@@ -46,9 +46,12 @@ echo "==> Installing dependencies"
 npm ci --omit=dev
 
 echo "==> Writing environment"
-cat > .env <<EOF
-PORT=${PORT}
-EOF
+touch .env
+if grep -q '^PORT=' .env; then
+  sed -i "s/^PORT=.*/PORT=${PORT}/" .env
+else
+  printf '\nPORT=%s\n' "${PORT}" >> .env
+fi
 
 echo "==> Starting service"
 PORT="${PORT}" pm2 start ecosystem.config.cjs --update-env

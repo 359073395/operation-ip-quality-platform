@@ -446,14 +446,49 @@ async function getFreeRiskIntel(ipMeta) {
     };
   }
 
-  const [ipapiIs, proxycheck] = await Promise.all([
+  async function fetchAbuseIpDb() {
+    if (!process.env.ABUSEIPDB_API_KEY) {
+      return { ok: false, status: 0, data: null, skipped: true };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), RISK_TIMEOUT_MS);
+
+    try {
+      const params = new URLSearchParams({
+        ipAddress: ipMeta.ip,
+        maxAgeInDays: "90",
+        verbose: "true",
+      });
+      const response = await fetch(`https://api.abuseipdb.com/api/v2/check?${params.toString()}`, {
+        signal: controller.signal,
+        headers: {
+          Key: process.env.ABUSEIPDB_API_KEY,
+          Accept: "application/json",
+        },
+      });
+      const data = await response.json().catch(() => null);
+
+      return { ok: response.ok, status: response.status, data };
+    } catch (error) {
+      return { ok: false, status: 0, data: null, error: error.name || "FetchError" };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const [ipapiIs, proxycheck, abuseIpDb] = await Promise.all([
     fetchJson(`https://api.ipapi.is/?q=${encodeURIComponent(ipMeta.ip)}`, RISK_TIMEOUT_MS),
     fetchJson(`https://proxycheck.io/v3/${encodeURIComponent(ipMeta.ip)}`, RISK_TIMEOUT_MS),
+    fetchAbuseIpDb(),
   ]);
 
   const ipapiData = ipapiIs.ok && ipapiIs.data ? ipapiIs.data : {};
   const proxyData = proxycheck.ok && proxycheck.data ? proxycheck.data[ipMeta.ip] || {} : {};
   const detections = proxyData.detections || {};
+  const abuseData = abuseIpDb.ok && abuseIpDb.data && abuseIpDb.data.data ? abuseIpDb.data.data : {};
+  const abuseConfidenceScore = Number(abuseData.abuseConfidenceScore || 0);
+  const totalReports = Number(abuseData.totalReports || 0);
 
   const flags = {
     proxy: Boolean(ipapiData.is_proxy || detections.proxy),
@@ -464,9 +499,9 @@ async function getFreeRiskIntel(ipMeta) {
     anonymous: Boolean(detections.anonymous || ipapiData.is_proxy || ipapiData.is_vpn || ipapiData.is_tor),
     compromised: Boolean(detections.compromised),
     scraper: Boolean(ipapiData.is_crawler || detections.scraper),
-    abuser: Boolean(ipapiData.is_abuser || detections.compromised || detections.scraper),
+    abuser: Boolean(ipapiData.is_abuser || detections.compromised || detections.scraper || abuseConfidenceScore >= 25 || totalReports > 0),
     mobile: Boolean(ipapiData.is_mobile),
-    risk: Number(detections.risk || 0),
+    risk: Math.max(Number(detections.risk || 0), abuseConfidenceScore),
     confidence: detections.confidence ?? null,
   };
 
@@ -478,6 +513,10 @@ async function getFreeRiskIntel(ipMeta) {
 
   if (proxycheck.ok && proxycheck.data && proxycheck.data.status === "ok") {
     sources.push("proxycheck.io");
+  }
+
+  if (abuseIpDb.ok && abuseIpDb.data) {
+    sources.push("AbuseIPDB");
   }
 
   return {
@@ -498,6 +537,17 @@ async function getFreeRiskIntel(ipMeta) {
         risk: flags.risk,
         confidence: flags.confidence,
         lastUpdated: proxyData.last_updated || "",
+      },
+      abuseIpDb: {
+        enabled: Boolean(process.env.ABUSEIPDB_API_KEY),
+        status: abuseIpDb.status || 0,
+        abuseConfidenceScore,
+        totalReports,
+        numDistinctUsers: Number(abuseData.numDistinctUsers || 0),
+        usageType: abuseData.usageType || "",
+        isp: abuseData.isp || "",
+        domain: abuseData.domain || "",
+        lastReportedAt: abuseData.lastReportedAt || "",
       },
     },
   };

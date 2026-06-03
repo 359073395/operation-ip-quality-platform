@@ -84,8 +84,28 @@ sudo bash scripts/update-vps.sh
 
 - `ipapi.is`：辅助判断 datacenter、proxy、vpn、tor、abuser、crawler 等信号
 - `proxycheck.io`：辅助判断 proxy、vpn、hosting、anonymous、compromised、scraper、tor、risk/confidence 等信号
+- `AbuseIPDB`：配置 `ABUSEIPDB_API_KEY` 后，辅助判断 abuse confidence score、报告次数、滥用历史等信号
 
 这些来源不是 TikTok 官方数据库，只能作为运营风险辅助判断。
+
+在 VPS 上配置 AbuseIPDB：
+
+```bash
+cd /opt/operation-ip-quality-platform
+sudo nano .env
+```
+
+加入：
+
+```bash
+ABUSEIPDB_API_KEY=你的AbuseIPDBKey
+```
+
+然后重启：
+
+```bash
+pm2 restart operation-ip-quality-platform --update-env
+```
 
 ## 常用命令
 
