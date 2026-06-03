@@ -1,0 +1,11 @@
+services:
+  ip-quality-platform:
+    build: .
+    container_name: operation-ip-quality-platform
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4173
+    ports:
+      - "4173:4173"
+

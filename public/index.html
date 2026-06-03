@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>IP 运营质量检测</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">TikTok / ChatGPT / 主流平台出口检测</p>
+          <h1>运营IP质检平台</h1>
+          <p class="subhead">判断 IP 是否住宅网络，辅助评估 TikTok 店铺、账号运营、广告投放和 AI 平台访问风险。</p>
+        </div>
+        <div class="signal-panel" aria-label="网络信号可视化">
+          <canvas id="signalCanvas" width="520" height="360"></canvas>
+          <div class="signal-readout">
+            <span>Live probe</span>
+            <strong id="probePulse">Ready</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <form id="checkForm" class="query-bar">
+          <div class="field">
+            <label for="ipInput">IP 地址</label>
+            <input id="ipInput" name="ip" autocomplete="off" placeholder="例如 8.8.8.8 或 2001:4860:4860::8888">
+          </div>
+          <div class="field verify-field">
+            <label for="challengeAnswer">验证</label>
+            <div class="verify-row">
+              <span id="challengeQuestion" class="challenge-question">加载中...</span>
+              <input id="challengeAnswer" name="challengeAnswer" autocomplete="off" inputmode="numeric" placeholder="答案">
+              <button id="refreshChallenge" class="icon-button" type="button" aria-label="刷新验证题">↻</button>
+            </div>
+          </div>
+          <label class="toggle">
+            <input id="reachabilityInput" type="checkbox" checked>
+            <span>测试检测节点的平台连通性</span>
+          </label>
+          <button id="submitButton" type="submit">
+            <span class="button-icon" aria-hidden="true">↗</span>
+            开始检测
+          </button>
+        </form>
+
+        <section id="emptyState" class="empty-state">
+          <h2>输入一个 IP，生成运营质量报告</h2>
+          <p>第一版支持基础情报、住宅/VPS 倾向、DNS 黑名单、TikTok 与 ChatGPT 等平台连通性、综合评分和运营建议。</p>
+        </section>
+
+        <section id="loadingState" class="loading-state" hidden>
+          <div class="spinner"></div>
+          <p>正在收集 IP 情报、黑名单和平台连通性...</p>
+        </section>
+
+        <section id="errorState" class="error-state" hidden></section>
+
+        <section id="report" class="report" hidden>
+          <div class="score-band">
+            <div class="score-ring">
+              <span id="scoreValue">0</span>
+              <small id="scoreGrade">D</small>
+            </div>
+            <div>
+              <p class="section-kicker">综合判断</p>
+              <h2 id="scoreLabel">等待检测</h2>
+              <p id="scoreSummary"></p>
+            </div>
+          </div>
+
+          <div class="report-grid">
+            <article class="panel">
+              <div class="panel-title">
+                <span class="status-dot"></span>
+                <h3>发现问题</h3>
+              </div>
+              <p class="panel-help">根据实际 TikTok 运营中的限流、验证、封号情况总结：时区语言冲突建议调整设备设置，其它 IP 问题建议更换 IP，提示黑名单不建议使用。</p>
+              <ul id="issueList" class="clean-list issue-list"></ul>
+            </article>
+
+            <article class="panel">
+              <div class="panel-title">
+                <span class="status-dot"></span>
+                <h3>主要信息</h3>
+              </div>
+              <dl id="mainInfoList" class="info-list"></dl>
+              <div id="mainInfoHelp" class="term-box"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-title">
+                <span class="status-dot"></span>
+                <h3>重要检测</h3>
+              </div>
+              <p class="panel-help">重要检测用于识别 VPN、机房代理、公开代理、黑名单、滥用来源、TOR、攻击记录和云服务节点。</p>
+              <dl id="importantList" class="info-list"></dl>
+              <div id="importantHelp" class="term-box"></div>
+            </article>
+
+            <article class="panel panel-wide">
+              <div class="panel-title">
+                <span class="status-dot"></span>
+                <h3>地区时区</h3>
+              </div>
+              <dl id="regionList" class="info-list info-list-wide"></dl>
+            </article>
+
+            <article class="panel panel-wide">
+              <div class="panel-title">
+                <span class="status-dot"></span>
+                <h3>平台连通性</h3>
+              </div>
+              <p id="reachabilityNote" class="muted"></p>
+              <div id="platformGrid" class="platform-grid"></div>
+            </article>
+
+            <article class="panel panel-wide">
+              <div class="panel-title">
+                <span class="status-dot"></span>
+                <h3>运营建议</h3>
+              </div>
+              <ul id="recommendationList" class="recommendation-list"></ul>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
