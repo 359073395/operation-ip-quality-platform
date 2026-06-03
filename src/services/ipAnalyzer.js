@@ -4,6 +4,7 @@ const ipaddr = require("ipaddr.js");
 const IPINFO_TIMEOUT_MS = 4500;
 const PROBE_TIMEOUT_MS = 6500;
 const DNSBL_TIMEOUT_MS = 2800;
+const RISK_TIMEOUT_MS = 4500;
 
 const languageByCountry = {
   ID: "Indonesian",
@@ -419,6 +420,89 @@ async function checkDnsbl(ipMeta) {
   };
 }
 
+async function getFreeRiskIntel(ipMeta) {
+  const emptyFlags = {
+    proxy: false,
+    vpn: false,
+    tor: false,
+    hosting: false,
+    datacenter: false,
+    anonymous: false,
+    compromised: false,
+    scraper: false,
+    abuser: false,
+    mobile: false,
+    risk: 0,
+    confidence: null,
+  };
+
+  if (!ipMeta.isPublic) {
+    return {
+      status: "skipped",
+      sources: [],
+      flags: emptyFlags,
+      details: {},
+      note: "第三方风控仅检测公网 IP。",
+    };
+  }
+
+  const [ipapiIs, proxycheck] = await Promise.all([
+    fetchJson(`https://api.ipapi.is/?q=${encodeURIComponent(ipMeta.ip)}`, RISK_TIMEOUT_MS),
+    fetchJson(`https://proxycheck.io/v3/${encodeURIComponent(ipMeta.ip)}`, RISK_TIMEOUT_MS),
+  ]);
+
+  const ipapiData = ipapiIs.ok && ipapiIs.data ? ipapiIs.data : {};
+  const proxyData = proxycheck.ok && proxycheck.data ? proxycheck.data[ipMeta.ip] || {} : {};
+  const detections = proxyData.detections || {};
+
+  const flags = {
+    proxy: Boolean(ipapiData.is_proxy || detections.proxy),
+    vpn: Boolean(ipapiData.is_vpn || detections.vpn),
+    tor: Boolean(ipapiData.is_tor || detections.tor),
+    hosting: Boolean(detections.hosting),
+    datacenter: Boolean(ipapiData.is_datacenter || detections.hosting),
+    anonymous: Boolean(detections.anonymous || ipapiData.is_proxy || ipapiData.is_vpn || ipapiData.is_tor),
+    compromised: Boolean(detections.compromised),
+    scraper: Boolean(ipapiData.is_crawler || detections.scraper),
+    abuser: Boolean(ipapiData.is_abuser || detections.compromised || detections.scraper),
+    mobile: Boolean(ipapiData.is_mobile),
+    risk: Number(detections.risk || 0),
+    confidence: detections.confidence ?? null,
+  };
+
+  const sources = [];
+
+  if (ipapiIs.ok && ipapiIs.data) {
+    sources.push("ipapi.is");
+  }
+
+  if (proxycheck.ok && proxycheck.data && proxycheck.data.status === "ok") {
+    sources.push("proxycheck.io");
+  }
+
+  return {
+    status: sources.length ? "ok" : "failed",
+    sources,
+    flags,
+    details: {
+      ipapiIs: {
+        companyType: ipapiData.company && ipapiData.company.type,
+        companyName: ipapiData.company && ipapiData.company.name,
+        asnType: ipapiData.asn && ipapiData.asn.type,
+        asnAbuserScore: ipapiData.asn && ipapiData.asn.abuser_score,
+        companyAbuserScore: ipapiData.company && ipapiData.company.abuser_score,
+      },
+      proxycheck: {
+        networkType: proxyData.network && proxyData.network.type,
+        provider: proxyData.network && proxyData.network.provider,
+        risk: flags.risk,
+        confidence: flags.confidence,
+        lastUpdated: proxyData.last_updated || "",
+      },
+    },
+  };
+}
+
 async function probeTarget(target, egress) {
   const startedAt = Date.now();
   const controller = new AbortController();
@@ -524,20 +608,33 @@ function buildReachabilityContext(reachability, geoIntel) {
   };
 }
 
-function buildImportantChecks({ classification, dnsbl }) {
+function buildImportantChecks({ classification, dnsbl, riskIntel }) {
   const isDatacenter = classification.severity === "danger";
   const listed = dnsbl.listed && dnsbl.listed.length > 0;
+  const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
+  const isProxy = Boolean(flags.proxy);
+  const isVpn = Boolean(flags.vpn);
+  const isTor = Boolean(flags.tor);
+  const isCloud = Boolean(flags.hosting || flags.datacenter);
+  const isAbuse = Boolean(flags.abuser || flags.compromised || flags.scraper || flags.risk >= 50);
+  const isSuspicious = Boolean(isProxy || isVpn || isTor || isCloud || isAbuse || listed);
 
   return {
-    anonymousVpn: isDatacenter ? "疑似" : "否",
-    datacenterProxy: isDatacenter ? "是" : "否",
-    publicProxy: "未发现",
-    suspiciousProxy: isDatacenter || listed ? "疑似" : "否",
+    anonymousVpn: isVpn || flags.anonymous ? "是" : "否",
+    datacenterProxy: isCloud || isDatacenter ? "是" : "否",
+    publicProxy: isProxy ? "是" : "未发现",
+    suspiciousProxy: isSuspicious ? "疑似" : "否",
     blacklist: listed ? "是" : "否",
-    abuseNode: listed ? "疑似" : "否",
-    torNode: "未发现",
-    attackParticipant: listed ? "疑似" : "否",
-    cloudService: isDatacenter ? "是" : "否",
+    abuseNode: isAbuse || listed ? "疑似" : "否",
+    torNode: isTor ? "是" : "未发现",
+    attackParticipant: flags.compromised || listed ? "疑似" : "否",
+    cloudService: isCloud || isDatacenter ? "是" : "否",
+    riskSource: riskIntel && riskIntel.sources && riskIntel.sources.length
+      ? riskIntel.sources.join(" / ")
+      : "未获取",
+    riskScore: flags.confidence === null || flags.confidence === undefined
+      ? `risk ${flags.risk || 0}`
+      : `risk ${flags.risk || 0} / confidence ${flags.confidence}`,
   };
 }
 
@@ -560,9 +657,10 @@ function normalizeLanguageCode(language) {
   return String(language || "").toLowerCase().split("-")[0];
 }
 
-function buildIssues({ classification, dnsbl, geoIntel, requestMeta }) {
+function buildIssues({ classification, dnsbl, geoIntel, requestMeta, riskIntel }) {
   const issues = [];
   const listed = dnsbl.listed && dnsbl.listed.length > 0;
+  const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
   const deviceTimezone = requestMeta.deviceTimezone || "";
   const deviceLanguages = Array.isArray(requestMeta.deviceLanguages) ? requestMeta.deviceLanguages : [];
   const expectedLanguages = languageCodeByCountry[geoIntel.countryCode] || [];
@@ -608,6 +706,23 @@ function buildIssues({ classification, dnsbl, geoIntel, requestMeta }) {
       level: "danger",
       title: "提示黑名单",
       detail: "该 IP 命中黑名单，媒体、商城、社交平台容易触发风控，不建议使用。",
+    });
+  }
+
+  if (flags.proxy || flags.vpn || flags.tor || flags.hosting || flags.datacenter || flags.abuser || flags.risk >= 50) {
+    const riskLabels = [
+      flags.proxy ? "代理" : "",
+      flags.vpn ? "VPN" : "",
+      flags.tor ? "TOR" : "",
+      flags.hosting || flags.datacenter ? "机房/云服务" : "",
+      flags.abuser ? "滥用节点" : "",
+      flags.risk >= 50 ? `风险分 ${flags.risk}` : "",
+    ].filter(Boolean);
+
+    issues.push({
+      level: "danger",
+      title: "第三方风控命中",
+      detail: `免费风控库检测到 ${riskLabels.join("、")} 信号，媒体、商城、社交平台容易触发风控，建议更换 IP。`,
     });
   }
 
@@ -665,10 +780,11 @@ function buildTermExplanations() {
   };
 }
 
-function scoreIp({ classification, dnsbl, reachability, geoIntel, ipMeta }) {
+function scoreIp({ classification, dnsbl, geoIntel, ipMeta, riskIntel }) {
   let score = 72;
   const penalties = [];
   const bonuses = [];
+  const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
 
   if (!ipMeta.isPublic) {
     score -= 65;
@@ -695,19 +811,17 @@ function scoreIp({ classification, dnsbl, reachability, geoIntel, ipMeta }) {
     penalties.push(`命中 ${dnsbl.listed.length} 个黑名单。`);
   }
 
-  if (reachability.mode === "server-egress") {
-    const blocked = reachability.targets.filter((item) => item.status === "blocked");
-    const criticalBlocked = blocked.filter((item) => ["tiktok", "chatgpt", "openaiApi"].includes(item.key));
+  if (flags.proxy || flags.vpn || flags.tor || flags.hosting || flags.datacenter || flags.abuser) {
+    score -= 28;
+    penalties.push("第三方风控库命中代理/VPN/机房/滥用风险。");
+  } else if (riskIntel && riskIntel.status === "ok" && flags.risk < 50) {
+    score += 6;
+    bonuses.push("免费第三方风控库未发现代理/VPN/TOR/机房/滥用信号。");
+  }
 
-    score -= criticalBlocked.length * 8;
-    if (criticalBlocked.length) {
-      penalties.push("TikTok/AI 关键平台存在连通性失败。");
-    }
-
-    if (reachability.reachableCount >= Math.ceil(reachability.total * 0.75)) {
-      score += 6;
-      bonuses.push("多数主流平台可从检测节点连通。");
-    }
+  if (flags.risk >= 50) {
+    score -= Math.min(22, Math.round(flags.risk / 5));
+    penalties.push(`第三方风险分较高：${flags.risk}。`);
   }
 
   if (!geoIntel.countryCode) {
@@ -790,18 +904,19 @@ function buildRecommendations({ classification, dnsbl, reachability, ipMeta }) {
 async function analyzeIp({ ip, runReachability = true, requestMeta = {} }) {
   const normalizedIp = normalizeIp(ip);
   const ipMeta = getIpMeta(normalizedIp);
-  const [geoIntel, dnsbl] = await Promise.all([
+  const [geoIntel, dnsbl, freeRiskIntel] = await Promise.all([
     getGeoIntel(ipMeta),
     checkDnsbl(ipMeta),
+    getFreeRiskIntel(ipMeta),
   ]);
   const rawReachability = await runReachabilityChecks(runReachability, geoIntel);
   const reachability = buildReachabilityContext(rawReachability, geoIntel);
   const classification = classifyNetwork(geoIntel, ipMeta);
   const operatorProfile = buildOperatorProfile(geoIntel, classification);
-  const importantChecks = buildImportantChecks({ classification, dnsbl });
+  const importantChecks = buildImportantChecks({ classification, dnsbl, riskIntel: freeRiskIntel });
   const regionTime = buildRegionTime(geoIntel);
-  const issues = buildIssues({ classification, dnsbl, geoIntel, requestMeta });
-  const score = scoreIp({ classification, dnsbl, reachability, geoIntel, ipMeta });
+  const issues = buildIssues({ classification, dnsbl, geoIntel, requestMeta, riskIntel: freeRiskIntel });
+  const score = scoreIp({ classification, dnsbl, geoIntel, ipMeta, riskIntel: freeRiskIntel });
 
   return {
     checkedAt: new Date().toISOString(),
@@ -829,6 +944,7 @@ async function analyzeIp({ ip, runReachability = true, requestMeta = {} }) {
     termExplanations: buildTermExplanations(),
     reputation: {
       dnsbl,
+      freeRiskIntel,
     },
     reachability,
     score,

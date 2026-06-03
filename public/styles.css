@@ -576,6 +576,12 @@ button:disabled {
   background: rgba(199, 70, 55, 0.12);
 }
 
+.meta-value {
+  color: #344043;
+  font-size: 13px;
+  font-weight: 760;
+}
+
 .muted {
   margin: 0 0 14px;
   color: var(--muted);

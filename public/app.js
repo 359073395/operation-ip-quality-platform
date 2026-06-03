@@ -141,12 +141,19 @@ function renderImportantChecks(checks) {
     ["TOR节点", checks.torNode],
     ["参与攻击", checks.attackParticipant],
     ["云服务", checks.cloudService],
+    ["风控来源", checks.riskSource],
+    ["风险分", checks.riskScore],
   ];
 
-  importantList.innerHTML = rows.map(([label, value]) => `
-    <dt>${escapeHtml(label)}</dt>
-    <dd><span class="risk-pill ${statusClass(value)}">${escapeHtml(value)}</span></dd>
-  `).join("");
+  importantList.innerHTML = rows.map(([label, value]) => {
+    const isMeta = ["风控来源", "风险分"].includes(label);
+    return `
+      <dt>${escapeHtml(label)}</dt>
+      <dd>${isMeta
+        ? `<span class="meta-value">${escapeHtml(value || "-")}</span>`
+        : `<span class="risk-pill ${statusClass(value)}">${escapeHtml(value)}</span>`}</dd>
+    `;
+  }).join("");
 }
 
 function renderReport(data) {
