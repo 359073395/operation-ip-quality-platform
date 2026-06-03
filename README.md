@@ -34,6 +34,24 @@ npm start
 http://localhost:4173
 ```
 
+后台管理：
+
+```text
+http://localhost:4173/admin
+```
+
+启用后台需要在 `.env` 中配置：
+
+```bash
+ADMIN_PASSWORD=你的后台密码
+```
+
+后台可用于：
+
+- 修改首页标题、副标题、说明文字
+- 修改 AbuseIPDB / IPQualityScore API Key
+- 测试 API Key 是否连通
+
 ## VPS 一键部署
 
 适用于 Ubuntu / Debian VPS。

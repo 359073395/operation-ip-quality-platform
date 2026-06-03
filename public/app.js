@@ -26,6 +26,39 @@ const platformGrid = document.querySelector("#platformGrid");
 const recommendationList = document.querySelector("#recommendationList");
 let activeChallengeId = "";
 
+function setText(selector, value) {
+  const element = document.querySelector(selector);
+
+  if (element && typeof value === "string") {
+    element.textContent = value;
+  }
+}
+
+async function loadSiteConfig() {
+  try {
+    const response = await fetch("/api/site-config");
+    const config = await response.json();
+
+    if (!response.ok) {
+      return;
+    }
+
+    document.title = config.pageTitle || document.title;
+    setText("#heroEyebrow", config.eyebrow);
+    setText("#heroTitle", config.heroTitle);
+    setText("#heroSubhead", config.subhead);
+    setText("#emptyTitle", config.emptyTitle);
+    setText("#emptyText", config.emptyText);
+    setText("#loadingText", config.loadingText);
+    setText("#reachabilityToggleLabel", config.reachabilityToggleLabel);
+    setText("#issueHelp", config.issueHelp);
+    setText("#importantHelpText", config.importantHelp);
+    setText("#platformTitle", config.platformTitle);
+  } catch (_error) {
+    // Site text falls back to the static HTML defaults.
+  }
+}
+
 function setState(state) {
   emptyState.hidden = state !== "empty";
   loadingState.hidden = state !== "loading";
@@ -324,6 +357,7 @@ function drawSignal() {
 }
 
 drawSignal();
+loadSiteConfig();
 loadClientIp();
 loadChallenge();
 setState("empty");

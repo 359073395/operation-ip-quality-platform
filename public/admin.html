@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>后台管理 - 运营IP质检平台</title>
+    <link rel="stylesheet" href="/admin.css">
+  </head>
+  <body>
+    <main class="admin-shell">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Admin Console</p>
+          <h1>后台管理</h1>
+        </div>
+        <button id="logoutButton" class="ghost-button" type="button" hidden>退出</button>
+      </header>
+
+      <section id="loginPanel" class="panel">
+        <h2>登录</h2>
+        <p class="muted">使用 VPS `.env` 中的 `ADMIN_PASSWORD` 登录。</p>
+        <form id="loginForm" class="admin-form">
+          <label>
+            后台密码
+            <input id="adminPassword" type="password" autocomplete="current-password" placeholder="请输入后台密码">
+          </label>
+          <button type="submit">登录</button>
+        </form>
+      </section>
+
+      <section id="adminPanel" hidden>
+        <div class="grid">
+          <section class="panel">
+            <h2>页面文案</h2>
+            <form id="copyForm" class="admin-form">
+              <label>浏览器标题<input name="pageTitle"></label>
+              <label>顶部小标题<input name="eyebrow"></label>
+              <label>主标题<input name="heroTitle"></label>
+              <label>副标题<textarea name="subhead" rows="3"></textarea></label>
+              <label>空状态标题<input name="emptyTitle"></label>
+              <label>空状态说明<textarea name="emptyText" rows="3"></textarea></label>
+              <label>加载提示<input name="loadingText"></label>
+              <label>平台选项文案<input name="reachabilityToggleLabel"></label>
+              <label>发现问题说明<textarea name="issueHelp" rows="3"></textarea></label>
+              <label>重要检测说明<textarea name="importantHelp" rows="3"></textarea></label>
+              <label>平台区标题<input name="platformTitle"></label>
+              <button type="submit">保存页面文案</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <h2>API Key</h2>
+            <p class="muted">留空表示不修改。保存后会立即写入 `.env` 并更新当前进程。</p>
+            <form id="apiKeyForm" class="admin-form">
+              <label>
+                AbuseIPDB
+                <input name="ABUSEIPDB_API_KEY" autocomplete="off" placeholder="未配置">
+              </label>
+              <label>
+                IPQualityScore
+                <input name="IPQUALITYSCORE_API_KEY" autocomplete="off" placeholder="未配置">
+              </label>
+              <button type="submit">保存 API Key</button>
+            </form>
+
+            <div class="test-box">
+              <h3>测试 API 连通</h3>
+              <label>
+                测试 IP
+                <input id="testIp" value="8.8.8.8">
+              </label>
+              <div class="button-row">
+                <button id="testAbuse" type="button">测试 AbuseIPDB</button>
+                <button id="testIpqs" type="button">测试 IPQualityScore</button>
+              </div>
+            </div>
+
+            <pre id="apiStatus" class="status-box">等待操作</pre>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="/admin.js"></script>
+  </body>
+</html>

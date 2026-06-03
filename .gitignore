@@ -18,7 +18,7 @@ build/
 
 outputs/
 work/
+data/
 
 .DS_Store
 Thumbs.db
-

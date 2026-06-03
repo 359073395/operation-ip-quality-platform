@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>IP 运营质量检测</title>
+    <title id="documentTitle">运营IP质检平台</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <main class="shell">
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">TikTok / ChatGPT / 主流平台访问参考</p>
-          <h1>运营IP质检平台</h1>
-          <p class="subhead">判断 IP 是否住宅网络，辅助评估 TikTok 店铺、账号运营、广告投放和 AI 平台访问风险。</p>
+          <p id="heroEyebrow" class="eyebrow">TikTok / ChatGPT / 主流平台访问参考</p>
+          <h1 id="heroTitle">运营IP质检平台</h1>
+          <p id="heroSubhead" class="subhead">判断 IP 是否住宅网络，辅助评估 TikTok 店铺、账号运营、广告投放和 AI 平台访问风险。</p>
         </div>
         <div class="signal-panel" aria-label="网络信号可视化">
           <canvas id="signalCanvas" width="520" height="360"></canvas>
@@ -39,7 +39,7 @@
           </div>
           <label class="toggle">
             <input id="reachabilityInput" type="checkbox" checked>
-            <span>显示输入 IP 的平台访问参考</span>
+            <span id="reachabilityToggleLabel">显示输入 IP 的平台访问参考</span>
           </label>
           <button id="submitButton" type="submit">
             <span class="button-icon" aria-hidden="true">↗</span>
@@ -48,13 +48,13 @@
         </form>
 
         <section id="emptyState" class="empty-state">
-          <h2>输入一个 IP，生成运营质量报告</h2>
-          <p>第一版支持基础情报、住宅/VPS 倾向、DNS 黑名单、TikTok 与 ChatGPT 等平台访问参考、综合评分和运营建议。</p>
+          <h2 id="emptyTitle">输入一个 IP，生成运营质量报告</h2>
+          <p id="emptyText">第一版支持基础情报、住宅/VPS 倾向、DNS 黑名单、TikTok 与 ChatGPT 等平台访问参考、综合评分和运营建议。</p>
         </section>
 
         <section id="loadingState" class="loading-state" hidden>
           <div class="spinner"></div>
-          <p>正在收集 IP 情报、黑名单和平台访问参考...</p>
+          <p id="loadingText">正在收集 IP 情报、黑名单和平台访问参考...</p>
         </section>
 
         <section id="errorState" class="error-state" hidden></section>
@@ -78,7 +78,7 @@
                 <span class="status-dot"></span>
                 <h3>发现问题</h3>
               </div>
-              <p class="panel-help">根据实际 TikTok 运营中的限流、验证、封号情况总结：时区语言冲突建议调整设备设置，其它 IP 问题建议更换 IP，提示黑名单不建议使用。</p>
+              <p id="issueHelp" class="panel-help">根据实际 TikTok 运营中的限流、验证、封号情况总结：时区语言冲突建议调整设备设置，其它 IP 问题建议更换 IP，提示黑名单不建议使用。</p>
               <ul id="issueList" class="clean-list issue-list"></ul>
             </article>
 
@@ -96,7 +96,7 @@
                 <span class="status-dot"></span>
                 <h3>重要检测</h3>
               </div>
-              <p class="panel-help">重要检测用于识别 VPN、机房代理、公开代理、黑名单、滥用来源、TOR、攻击记录和云服务节点。</p>
+              <p id="importantHelpText" class="panel-help">重要检测用于识别 VPN、机房代理、公开代理、黑名单、滥用来源、TOR、攻击记录和云服务节点。</p>
               <dl id="importantList" class="info-list"></dl>
               <div id="importantHelp" class="term-box"></div>
             </article>
@@ -112,7 +112,7 @@
             <article class="panel panel-wide">
               <div class="panel-title">
                 <span class="status-dot"></span>
-                <h3>平台访问参考</h3>
+                <h3 id="platformTitle">平台访问参考</h3>
               </div>
               <p id="reachabilityNote" class="muted"></p>
               <div id="platformGrid" class="platform-grid"></div>
