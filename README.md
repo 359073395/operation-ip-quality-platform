@@ -17,7 +17,7 @@ https://github.com/359073395/operation-ip-quality-platform
 - 重要检测：匿名 VPN、机房代理、公共代理、可疑代理、黑名单、滥用节点、TOR、攻击记录、云服务
 - 地区时区：广播地区、注册地区、城市、经纬度、本地时区、主要语言
 - 平台访问参考：TikTok、ChatGPT、OpenAI API、GitHub、Google、YouTube、Reddit、Netflix
-- 平台卡片显示用户输入 IP 的国家/地区，例如 `输入 IP 地区：印度尼西亚 / ID`
+- 平台卡片显示用户输入 IP 的归属地，例如 `归属地：印度尼西亚 / ID`
 - 检测前验证码：防止频繁恶意提交
 
 ## 本地运行

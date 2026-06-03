@@ -201,7 +201,7 @@ function renderReport(data) {
         <strong>${escapeHtml(target.name)}</strong>
         <span class="category">${escapeHtml(target.category)}</span>
         <span class="verdict">${escapeHtml(target.verdict)}</span>
-        <span class="region">输入 IP 地区：${escapeHtml(region)}</span>
+        <span class="region">归属地：${escapeHtml(region)}</span>
         <span class="latency">真实连通性需从该 IP 出口发起</span>
       </div>
     `;

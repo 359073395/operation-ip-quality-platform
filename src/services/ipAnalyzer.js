@@ -495,7 +495,7 @@ async function runReachabilityChecks(enabled, geoIntel) {
     egressCountry: geoIntel.country || "",
     egressCountryCode: geoIntel.countryCode || "",
     detectedRegion: inputRegion,
-    verdict: `输入 IP 地区：${inputRegion}`,
+    verdict: "归属地参考",
   }));
 
   return {
