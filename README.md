@@ -85,8 +85,11 @@ sudo bash scripts/update-vps.sh
 - `ipapi.is`：辅助判断 datacenter、proxy、vpn、tor、abuser、crawler 等信号
 - `proxycheck.io`：辅助判断 proxy、vpn、hosting、anonymous、compromised、scraper、tor、risk/confidence 等信号
 - `AbuseIPDB`：配置 `ABUSEIPDB_API_KEY` 后，辅助判断 abuse confidence score、报告次数、滥用历史等信号
+- `IPQualityScore`：配置 `IPQUALITYSCORE_API_KEY` 后，辅助判断 fraud score、proxy、VPN、TOR、recent abuse、bot、connection type 等信号
 
 这些来源不是 TikTok 官方数据库，只能作为运营风险辅助判断。
+
+如果 IPQualityScore 返回 `insufficient credits`，说明 key 已配置但账户暂无可用查询额度，需要在 IPQualityScore 后台确认免费额度或充值。
 
 在 VPS 上配置 AbuseIPDB：
 
@@ -99,6 +102,7 @@ sudo nano .env
 
 ```bash
 ABUSEIPDB_API_KEY=你的AbuseIPDBKey
+IPQUALITYSCORE_API_KEY=你的IPQualityScoreKey
 ```
 
 然后重启：

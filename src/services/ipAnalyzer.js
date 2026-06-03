@@ -477,10 +477,41 @@ async function getFreeRiskIntel(ipMeta) {
     }
   }
 
-  const [ipapiIs, proxycheck, abuseIpDb] = await Promise.all([
+  async function fetchIpQualityScore() {
+    if (!process.env.IPQUALITYSCORE_API_KEY) {
+      return { ok: false, status: 0, data: null, skipped: true };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), RISK_TIMEOUT_MS);
+
+    try {
+      const params = new URLSearchParams({
+        strictness: "1",
+        fast: "true",
+        allow_public_access_points: "true",
+      });
+      const response = await fetch(`https://www.ipqualityscore.com/api/json/ip/${process.env.IPQUALITYSCORE_API_KEY}/${encodeURIComponent(ipMeta.ip)}?${params.toString()}`, {
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+        },
+      });
+      const data = await response.json().catch(() => null);
+
+      return { ok: response.ok && data && data.success !== false, status: response.status, data };
+    } catch (error) {
+      return { ok: false, status: 0, data: null, error: error.name || "FetchError" };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const [ipapiIs, proxycheck, abuseIpDb, ipQualityScore] = await Promise.all([
     fetchJson(`https://api.ipapi.is/?q=${encodeURIComponent(ipMeta.ip)}`, RISK_TIMEOUT_MS),
     fetchJson(`https://proxycheck.io/v3/${encodeURIComponent(ipMeta.ip)}`, RISK_TIMEOUT_MS),
     fetchAbuseIpDb(),
+    fetchIpQualityScore(),
   ]);
 
   const ipapiData = ipapiIs.ok && ipapiIs.data ? ipapiIs.data : {};
@@ -489,19 +520,29 @@ async function getFreeRiskIntel(ipMeta) {
   const abuseData = abuseIpDb.ok && abuseIpDb.data && abuseIpDb.data.data ? abuseIpDb.data.data : {};
   const abuseConfidenceScore = Number(abuseData.abuseConfidenceScore || 0);
   const totalReports = Number(abuseData.totalReports || 0);
+  const ipqsRawData = ipQualityScore.data || {};
+  const ipqsData = ipQualityScore.ok && ipQualityScore.data ? ipQualityScore.data : {};
+  const ipqsFraudScore = Number(ipqsData.fraud_score || 0);
+  const ipqsProxy = Boolean(ipqsData.proxy);
+  const ipqsVpn = Boolean(ipqsData.vpn || ipqsData.active_vpn);
+  const ipqsTor = Boolean(ipqsData.tor || ipqsData.active_tor);
+  const ipqsRecentAbuse = Boolean(ipqsData.recent_abuse);
+  const ipqsBot = Boolean(ipqsData.bot_status);
+  const ipqsConnectionType = String(ipqsData.connection_type || "").toLowerCase();
+  const ipqsHosting = /hosting|data center|datacenter|cloud|server/.test(ipqsConnectionType);
 
   const flags = {
-    proxy: Boolean(ipapiData.is_proxy || detections.proxy),
-    vpn: Boolean(ipapiData.is_vpn || detections.vpn),
-    tor: Boolean(ipapiData.is_tor || detections.tor),
-    hosting: Boolean(detections.hosting),
-    datacenter: Boolean(ipapiData.is_datacenter || detections.hosting),
-    anonymous: Boolean(detections.anonymous || ipapiData.is_proxy || ipapiData.is_vpn || ipapiData.is_tor),
+    proxy: Boolean(ipapiData.is_proxy || detections.proxy || ipqsProxy),
+    vpn: Boolean(ipapiData.is_vpn || detections.vpn || ipqsVpn),
+    tor: Boolean(ipapiData.is_tor || detections.tor || ipqsTor),
+    hosting: Boolean(detections.hosting || ipqsHosting),
+    datacenter: Boolean(ipapiData.is_datacenter || detections.hosting || ipqsHosting),
+    anonymous: Boolean(detections.anonymous || ipapiData.is_proxy || ipapiData.is_vpn || ipapiData.is_tor || ipqsProxy || ipqsVpn || ipqsTor),
     compromised: Boolean(detections.compromised),
-    scraper: Boolean(ipapiData.is_crawler || detections.scraper),
-    abuser: Boolean(ipapiData.is_abuser || detections.compromised || detections.scraper || abuseConfidenceScore >= 25 || totalReports > 0),
-    mobile: Boolean(ipapiData.is_mobile),
-    risk: Math.max(Number(detections.risk || 0), abuseConfidenceScore),
+    scraper: Boolean(ipapiData.is_crawler || detections.scraper || ipqsBot),
+    abuser: Boolean(ipapiData.is_abuser || detections.compromised || detections.scraper || abuseConfidenceScore >= 25 || totalReports > 0 || ipqsRecentAbuse || ipqsFraudScore >= 75),
+    mobile: Boolean(ipapiData.is_mobile || ipqsData.mobile),
+    risk: Math.max(Number(detections.risk || 0), abuseConfidenceScore, ipqsFraudScore),
     confidence: detections.confidence ?? null,
   };
 
@@ -517,6 +558,10 @@ async function getFreeRiskIntel(ipMeta) {
 
   if (abuseIpDb.ok && abuseIpDb.data) {
     sources.push("AbuseIPDB");
+  }
+
+  if (ipQualityScore.ok && ipQualityScore.data) {
+    sources.push("IPQualityScore");
   }
 
   return {
@@ -548,6 +593,24 @@ async function getFreeRiskIntel(ipMeta) {
         isp: abuseData.isp || "",
         domain: abuseData.domain || "",
         lastReportedAt: abuseData.lastReportedAt || "",
+      },
+      ipQualityScore: {
+        enabled: Boolean(process.env.IPQUALITYSCORE_API_KEY),
+        status: ipQualityScore.status || 0,
+        success: Boolean(ipQualityScore.ok),
+        fraudScore: ipqsFraudScore,
+        proxy: ipqsProxy,
+        vpn: ipqsVpn,
+        tor: ipqsTor,
+        recentAbuse: ipqsRecentAbuse,
+        botStatus: ipqsBot,
+        mobile: Boolean(ipqsData.mobile),
+        connectionType: ipqsData.connection_type || "",
+        abuseVelocity: ipqsData.abuse_velocity || "",
+        isp: ipqsData.ISP || ipqsData.isp || "",
+        asn: ipqsData.ASN || ipqsData.asn || "",
+        organization: ipqsData.organization || "",
+        message: ipqsRawData.message || "",
       },
     },
   };
