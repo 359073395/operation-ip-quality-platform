@@ -547,6 +547,22 @@ function buildIssues({ classification, dnsbl, geoIntel, requestMeta }) {
     && actualLanguages.length > 0
     && !actualLanguages.some((language) => expectedLanguages.includes(language));
 
+  if (deviceTimezone && geoIntel.timezone && deviceTimezone === geoIntel.timezone) {
+    issues.push({
+      level: "good",
+      title: "时区匹配",
+      detail: `IP 本地时区为 ${geoIntel.timezone}，当前检测设备时区也是 ${deviceTimezone}。TikTok 运营时区设置与目标 IP 地区一致。`,
+    });
+  }
+
+  if (!deviceTimezone && geoIntel.timezone) {
+    issues.push({
+      level: "warning",
+      title: "无法读取设备时区",
+      detail: `IP 本地时区为 ${geoIntel.timezone}，但当前浏览器未提供设备时区。做 TikTok 运营时，请确认设备时区与目标 IP 地区一致。`,
+    });
+  }
+
   if (deviceTimezone && geoIntel.timezone && deviceTimezone !== geoIntel.timezone) {
     issues.push({
       level: "warning",
