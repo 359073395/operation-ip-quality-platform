@@ -1013,6 +1013,19 @@ function getRiskBand(riskValue) {
 
 function deriveIpType({ classification, riskIntel, ipMeta }) {
   const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
+  const details = riskIntel && riskIntel.details ? riskIntel.details : {};
+  const identity = [
+    details.ipapiIs && details.ipapiIs.companyType,
+    details.ipapiIs && details.ipapiIs.asnType,
+    details.proxycheck && details.proxycheck.networkType,
+    details.abuseIpDb && details.abuseIpDb.usageType,
+    details.ipQualityScore && details.ipQualityScore.connectionType,
+  ].filter(Boolean).join(" ").toLowerCase();
+  const riskValue = Number(flags.risk || 0);
+  const hasHardRisk = Boolean(flags.proxy || flags.vpn || flags.tor || flags.abuser || riskValue >= 70);
+  const hasDatacenterSignal = /hosting|data center|datacenter|cloud|server/.test(identity);
+  const hasMobileSignal = /mobile|wireless|cellular|lte|5g|4g/.test(identity);
+  const hasResidentialSignal = /residential|isp|fixed line|fixed-line|broadband|cable|dsl|telecom|internet service/.test(identity);
 
   if (!ipMeta.isPublic) {
     return { label: "非公网 IP", tone: "danger" };
@@ -1022,19 +1035,23 @@ function deriveIpType({ classification, riskIntel, ipMeta }) {
     return { label: "代理/VPN IP", tone: "danger" };
   }
 
-  if (flags.hosting || flags.datacenter || classification.severity === "danger") {
+  if (flags.hosting || flags.datacenter || classification.severity === "danger" || hasDatacenterSignal) {
     return { label: "IDC机房 IP", tone: "danger" };
   }
 
-  if (flags.mobile) {
+  if (flags.mobile || hasMobileSignal) {
     return { label: "移动网络 IP", tone: "good" };
   }
 
-  if (classification.severity === "good") {
+  if (classification.severity === "good" || hasResidentialSignal) {
     return { label: "住宅宽带 IP", tone: "good" };
   }
 
-  return { label: "未知类型 IP", tone: "warning" };
+  if (!hasHardRisk && riskValue <= 25 && ipMeta.isPublic) {
+    return { label: "ISP/住宅待确认", tone: "good" };
+  }
+
+  return { label: "类型待复核", tone: "warning" };
 }
 
 function collectCountrySignals(geoIntel, riskIntel) {
@@ -1053,6 +1070,8 @@ function collectCountrySignals(geoIntel, riskIntel) {
 
 function deriveNativeIp({ classification, geoIntel, riskIntel }) {
   const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
+  const riskValue = Number(flags.risk || 0);
+  const hasHardRisk = Boolean(flags.proxy || flags.vpn || flags.tor || flags.abuser || riskValue >= 70);
   const countrySignals = collectCountrySignals(geoIntel, riskIntel);
   const uniqueCountries = [...new Set(countrySignals)];
 
@@ -1085,6 +1104,14 @@ function deriveNativeIp({ classification, geoIntel, riskIntel }) {
       label: "原生 IP",
       tone: "good",
       detail: "主要数据源地区一致，且网络形态更接近住宅/运营商出口。",
+    };
+  }
+
+  if (!hasHardRisk && riskValue <= 40) {
+    return {
+      label: "原生 IP",
+      tone: "good",
+      detail: "主要数据源地区一致，且未命中代理、VPN、TOR 或高风险滥用信号。",
     };
   }
 
@@ -1139,7 +1166,7 @@ function buildScenarioFit({ classification, riskIntel, score }) {
   const riskValue = Number(flags.risk || 0);
   const hasHardRisk = Boolean(flags.proxy || flags.vpn || flags.tor || flags.abuser || riskValue >= 70);
   const isCloud = Boolean(flags.hosting || flags.datacenter || classification.severity === "danger");
-  const isResidential = classification.severity === "good";
+  const isResidential = classification.severity === "good" || (!hasHardRisk && !isCloud && riskValue <= 25);
   const baseStars = clamp(Math.round(score.score / 20), 1, 5);
 
   function makeScenario(name, adjustment, note) {

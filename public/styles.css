@@ -398,15 +398,13 @@ button:disabled {
 }
 
 .quality-section {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
-  gap: 14px;
+  display: block;
   margin-top: 14px;
 }
 
 .quality-matrix {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -468,8 +466,9 @@ button:disabled {
 
 .scenario-fit-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+  margin-top: 14px;
 }
 
 .scenario-card {
@@ -482,7 +481,6 @@ button:disabled {
 }
 
 .scenario-card strong,
-.scenario-card span,
 .scenario-card small {
   display: block;
 }
@@ -497,6 +495,11 @@ button:disabled {
   font-size: 24px;
   letter-spacing: 0;
   line-height: 1;
+  white-space: nowrap;
+}
+
+.star-rating span {
+  display: inline-block;
 }
 
 .star-rating span.active {
@@ -504,6 +507,7 @@ button:disabled {
 }
 
 .scenario-status {
+  display: block;
   margin-top: 9px;
   font-weight: 820;
 }
