@@ -15,6 +15,8 @@ const scoreValue = document.querySelector("#scoreValue");
 const scoreGrade = document.querySelector("#scoreGrade");
 const scoreLabel = document.querySelector("#scoreLabel");
 const scoreSummary = document.querySelector("#scoreSummary");
+const qualityMatrix = document.querySelector("#qualityMatrix");
+const scenarioFitGrid = document.querySelector("#scenarioFitGrid");
 const issueList = document.querySelector("#issueList");
 const mainInfoList = document.querySelector("#mainInfoList");
 const mainInfoHelp = document.querySelector("#mainInfoHelp");
@@ -189,6 +191,42 @@ function renderImportantChecks(checks) {
   }).join("");
 }
 
+function renderStars(stars, maxStars) {
+  const total = maxStars || 5;
+  const filled = Math.max(0, Math.min(total, Number(stars || 0)));
+
+  return Array.from({ length: total }, (_item, index) => {
+    const active = index < filled ? "active" : "";
+    return `<span class="${active}" aria-hidden="true">★</span>`;
+  }).join("");
+}
+
+function renderQualityProfile(profile) {
+  const rows = profile && Array.isArray(profile.rows) ? profile.rows : [];
+  const scenarios = profile && Array.isArray(profile.scenarios) ? profile.scenarios : [];
+
+  qualityMatrix.innerHTML = rows.map((row) => `
+    <div class="quality-row quality-${escapeHtml(row.tone || "neutral")}">
+      <div>
+        <strong>${escapeHtml(row.label)}</strong>
+        <span>${escapeHtml(row.help || "")}</span>
+      </div>
+      <b>${escapeHtml(row.value || "-")}</b>
+    </div>
+  `).join("");
+
+  scenarioFitGrid.innerHTML = scenarios.map((scenario) => `
+    <div class="scenario-card scenario-${escapeHtml(scenario.tone || "warning")}">
+      <strong>${escapeHtml(scenario.name)}</strong>
+      <div class="star-rating" aria-label="${escapeHtml(`${scenario.stars || 0}/${scenario.maxStars || 5}`)}">
+        ${renderStars(scenario.stars, scenario.maxStars)}
+      </div>
+      <span class="scenario-status">${escapeHtml(scenario.status || "待复核")}</span>
+      <small>${escapeHtml(scenario.note || "")}</small>
+    </div>
+  `).join("");
+}
+
 function renderReport(data) {
   scoreValue.textContent = data.score.score;
   scoreGrade.textContent = data.score.grade;
@@ -206,6 +244,7 @@ function renderReport(data) {
   ].join(" · ");
 
   renderIssueList(issueList, data.issues || []);
+  renderQualityProfile(data.qualityProfile);
 
   renderDl(mainInfoList, [
     ["国家/地区", data.mainInfo.countryRegion],

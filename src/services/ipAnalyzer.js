@@ -572,6 +572,8 @@ async function getFreeRiskIntel(ipMeta) {
       ipapiIs: {
         companyType: ipapiData.company && ipapiData.company.type,
         companyName: ipapiData.company && ipapiData.company.name,
+        countryCode: ipapiData.location && ipapiData.location.country_code,
+        country: ipapiData.location && ipapiData.location.country,
         asnType: ipapiData.asn && ipapiData.asn.type,
         asnAbuserScore: ipapiData.asn && ipapiData.asn.abuser_score,
         companyAbuserScore: ipapiData.company && ipapiData.company.abuser_score,
@@ -579,6 +581,8 @@ async function getFreeRiskIntel(ipMeta) {
       proxycheck: {
         networkType: proxyData.network && proxyData.network.type,
         provider: proxyData.network && proxyData.network.provider,
+        countryCode: proxyData.country || "",
+        country: proxyData.country_name || "",
         risk: flags.risk,
         confidence: flags.confidence,
         lastUpdated: proxyData.last_updated || "",
@@ -589,6 +593,7 @@ async function getFreeRiskIntel(ipMeta) {
         abuseConfidenceScore,
         totalReports,
         numDistinctUsers: Number(abuseData.numDistinctUsers || 0),
+        countryCode: abuseData.countryCode || "",
         usageType: abuseData.usageType || "",
         isp: abuseData.isp || "",
         domain: abuseData.domain || "",
@@ -605,6 +610,7 @@ async function getFreeRiskIntel(ipMeta) {
         recentAbuse: ipqsRecentAbuse,
         botStatus: ipqsBot,
         mobile: Boolean(ipqsData.mobile),
+        countryCode: ipqsData.country_code || ipqsData.countryCode || "",
         connectionType: ipqsData.connection_type || "",
         abuseVelocity: ipqsData.abuse_velocity || "",
         isp: ipqsData.ISP || ipqsData.isp || "",
@@ -966,6 +972,267 @@ function scoreIp({ classification, dnsbl, geoIntel, ipMeta, riskIntel }) {
   };
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function ipv4ToInteger(ipMeta) {
+  if (ipMeta.version !== "IPv4" || !ipMeta.isPublic) {
+    return ipMeta.version === "IPv4" ? "-" : "IPv6 不适用";
+  }
+
+  return ipMeta.ip
+    .split(".")
+    .reduce((total, part) => (total * 256) + Number(part), 0)
+    .toString();
+}
+
+function getRiskBand(riskValue) {
+  if (riskValue <= 15) {
+    return { label: "极度纯净", tone: "good" };
+  }
+
+  if (riskValue <= 25) {
+    return { label: "纯净", tone: "good" };
+  }
+
+  if (riskValue <= 40) {
+    return { label: "中性", tone: "warning" };
+  }
+
+  if (riskValue <= 50) {
+    return { label: "轻微风险", tone: "warning" };
+  }
+
+  if (riskValue <= 70) {
+    return { label: "风险偏高", tone: "danger" };
+  }
+
+  return { label: "高风险", tone: "danger" };
+}
+
+function deriveIpType({ classification, riskIntel, ipMeta }) {
+  const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
+
+  if (!ipMeta.isPublic) {
+    return { label: "非公网 IP", tone: "danger" };
+  }
+
+  if (flags.proxy || flags.vpn || flags.tor) {
+    return { label: "代理/VPN IP", tone: "danger" };
+  }
+
+  if (flags.hosting || flags.datacenter || classification.severity === "danger") {
+    return { label: "IDC机房 IP", tone: "danger" };
+  }
+
+  if (flags.mobile) {
+    return { label: "移动网络 IP", tone: "good" };
+  }
+
+  if (classification.severity === "good") {
+    return { label: "住宅宽带 IP", tone: "good" };
+  }
+
+  return { label: "未知类型 IP", tone: "warning" };
+}
+
+function collectCountrySignals(geoIntel, riskIntel) {
+  const details = riskIntel && riskIntel.details ? riskIntel.details : {};
+
+  return [
+    geoIntel.countryCode,
+    details.ipapiIs && details.ipapiIs.countryCode,
+    details.proxycheck && details.proxycheck.countryCode,
+    details.abuseIpDb && details.abuseIpDb.countryCode,
+    details.ipQualityScore && details.ipQualityScore.countryCode,
+  ]
+    .map((code) => String(code || "").trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function deriveNativeIp({ classification, geoIntel, riskIntel }) {
+  const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
+  const countrySignals = collectCountrySignals(geoIntel, riskIntel);
+  const uniqueCountries = [...new Set(countrySignals)];
+
+  if (!geoIntel.countryCode) {
+    return {
+      label: "待复核",
+      tone: "warning",
+      detail: "地理位置数据不足，暂时无法判断是否为原生地区。",
+    };
+  }
+
+  if (uniqueCountries.length > 1) {
+    return {
+      label: "广播/跨区疑似",
+      tone: "warning",
+      detail: `多个数据源返回的地区不一致：${uniqueCountries.join(" / ")}。`,
+    };
+  }
+
+  if (flags.hosting || flags.datacenter || classification.severity === "danger") {
+    return {
+      label: "非原生疑似",
+      tone: "danger",
+      detail: "机房、云服务或托管网络更容易出现广播地址、转租地址或平台风控问题。",
+    };
+  }
+
+  if (classification.severity === "good") {
+    return {
+      label: "原生 IP",
+      tone: "good",
+      detail: "主要数据源地区一致，且网络形态更接近住宅/运营商出口。",
+    };
+  }
+
+  return {
+    label: "原生待复核",
+    tone: "warning",
+    detail: "地区信号未冲突，但住宅属性证据仍不足。",
+  };
+}
+
+function estimateSharedUsers({ classification, riskIntel, score }) {
+  const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
+  const riskValue = Number(flags.risk || 0);
+
+  if (flags.proxy || flags.vpn || flags.tor || riskValue >= 70) {
+    return { label: "100+（高风险）", tone: "danger" };
+  }
+
+  if (flags.hosting || flags.datacenter || classification.severity === "danger" || riskValue >= 50) {
+    return { label: "50 - 100（偏高）", tone: "danger" };
+  }
+
+  if (classification.severity === "warning" || riskValue >= 30) {
+    return { label: "20 - 50（需观察）", tone: "warning" };
+  }
+
+  if (score.score >= 86 && riskValue <= 25) {
+    return { label: "1 - 10（极好）", tone: "good" };
+  }
+
+  return { label: "10 - 30（较好）", tone: "good" };
+}
+
+function scenarioTone(stars) {
+  if (stars >= 4) {
+    return { status: "适合", tone: "good" };
+  }
+
+  if (stars >= 3) {
+    return { status: "可以尝试", tone: "warning" };
+  }
+
+  if (stars >= 2) {
+    return { status: "谨慎测试", tone: "warning" };
+  }
+
+  return { status: "不建议", tone: "danger" };
+}
+
+function buildScenarioFit({ classification, riskIntel, score }) {
+  const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
+  const riskValue = Number(flags.risk || 0);
+  const hasHardRisk = Boolean(flags.proxy || flags.vpn || flags.tor || flags.abuser || riskValue >= 70);
+  const isCloud = Boolean(flags.hosting || flags.datacenter || classification.severity === "danger");
+  const isResidential = classification.severity === "good";
+  const baseStars = clamp(Math.round(score.score / 20), 1, 5);
+
+  function makeScenario(name, adjustment, note) {
+    const stars = clamp(baseStars + adjustment, 1, 5);
+    const tone = scenarioTone(stars);
+
+    return {
+      name,
+      stars,
+      maxStars: 5,
+      status: tone.status,
+      tone: tone.tone,
+      note,
+    };
+  }
+
+  return [
+    makeScenario(
+      "TikTok",
+      (isResidential ? 1 : -1) + (hasHardRisk ? -2 : 0) + (isCloud ? -1 : 0),
+      isResidential && !hasHardRisk ? "住宅属性较好" : "更看重住宅、时区、语言与低风控"
+    ),
+    makeScenario(
+      "跨境电商",
+      (hasHardRisk ? -2 : 0) + (isCloud ? -1 : 0),
+      hasHardRisk ? "支付、注册和商城更容易触发风控" : "建议小流量验证注册与支付链路"
+    ),
+    makeScenario(
+      "社媒运营",
+      (isResidential ? 1 : -1) + (hasHardRisk ? -2 : 0),
+      isResidential && !hasHardRisk ? "适合账号日常登录和低频运营" : "社交平台对代理和异常信誉较敏感"
+    ),
+    makeScenario(
+      "AI 应用",
+      (hasHardRisk ? -2 : 0) + (riskValue >= 40 ? -1 : 0),
+      hasHardRisk ? "ChatGPT/API 访问可能遇到验证或限制" : "适合作为 AI 平台访问风险参考"
+    ),
+  ];
+}
+
+function buildQualityProfile({ classification, geoIntel, ipMeta, riskIntel, score }) {
+  const flags = riskIntel && riskIntel.flags ? riskIntel.flags : {};
+  const riskValue = clamp(Math.round(Number(flags.risk || Math.max(0, 100 - score.score))), 0, 100);
+  const riskBand = getRiskBand(riskValue);
+  const ipType = deriveIpType({ classification, riskIntel, ipMeta });
+  const nativeIp = deriveNativeIp({ classification, geoIntel, riskIntel });
+  const sharedUsers = estimateSharedUsers({ classification, riskIntel, score });
+  const scenarios = buildScenarioFit({ classification, riskIntel, score });
+  const aiScenario = scenarios.find((scenario) => scenario.name === "AI 应用");
+
+  return {
+    rows: [
+      {
+        label: "IP 类型",
+        value: ipType.label,
+        tone: ipType.tone,
+        help: "根据 ASN、运营商名称和第三方风控信号综合判断。",
+      },
+      {
+        label: "风控值",
+        value: `${riskValue}% ${riskBand.label}`,
+        tone: riskBand.tone,
+        help: "数值越低越干净，综合 proxycheck、AbuseIPDB、IPQualityScore 等风险信号。",
+      },
+      {
+        label: "原生 IP",
+        value: nativeIp.label,
+        tone: nativeIp.tone,
+        help: nativeIp.detail,
+      },
+      {
+        label: "大模型检测",
+        value: aiScenario ? aiScenario.status : "待检测",
+        tone: aiScenario ? aiScenario.tone : "warning",
+        help: "用于参考 ChatGPT、OpenAI API 等 AI 平台的访问风控，不代表平台官方最终放行结果。",
+      },
+      {
+        label: "IP 地址(数字)",
+        value: ipv4ToInteger(ipMeta),
+        tone: "neutral",
+        help: "IPv4 可转换为整数形式，IPv6 不适用该展示。",
+      },
+      {
+        label: "共享人数",
+        value: sharedUsers.label,
+        tone: sharedUsers.tone,
+        help: "根据住宅/机房类型、代理信号和风险分做区间估算，不是运营商真实在线人数。",
+      },
+    ],
+    scenarios,
+  };
+}
+
 function buildReportSummary({ classification, operatorProfile, score }) {
   if (classification.severity === "good") {
     return `您的 IP 使用者是${operatorProfile.userFeature}类型，网络线路属于 ${operatorProfile.networkType}，独立性${operatorProfile.independence}，IP 质量${score.label === "优良" ? "非常优质" : "较好"}。`;
@@ -1030,6 +1297,13 @@ async function analyzeIp({ ip, runReachability = true, requestMeta = {} }) {
   const regionTime = buildRegionTime(geoIntel);
   const issues = buildIssues({ classification, dnsbl, geoIntel, requestMeta, riskIntel: freeRiskIntel });
   const score = scoreIp({ classification, dnsbl, geoIntel, ipMeta, riskIntel: freeRiskIntel });
+  const qualityProfile = buildQualityProfile({
+    classification,
+    geoIntel,
+    ipMeta,
+    riskIntel: freeRiskIntel,
+    score,
+  });
 
   return {
     checkedAt: new Date().toISOString(),
@@ -1059,6 +1333,7 @@ async function analyzeIp({ ip, runReachability = true, requestMeta = {} }) {
       dnsbl,
       freeRiskIntel,
     },
+    qualityProfile,
     reachability,
     score,
     reportSummary: buildReportSummary({ classification, operatorProfile, score }),
